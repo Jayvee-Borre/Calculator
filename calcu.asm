@@ -56,10 +56,43 @@ wrong_input: ; If the user input length > 1
 
 valid_input: ; if the user inputs a single character input
         ; copy below if you need a test logic
+        ;mov ah,9
+        ;mov dx,offset tst
+        ;int 21h
+        lodsb
+        
+        cmp al,'1'
+        je addi
+        cmp al,'2'
+        je subt
+        cmp al,'3'
+        je mult
+        cmp al,'4'
+        je divi
+        jmp wrong_input
+
+addi:
         mov ah,9
         mov dx,offset tst
         int 21h
+        jmp end_prog
+subt:
+        mov ah,9
+        mov dx,offset tst
+        int 21h
+        jmp end_prog
+mult:
+        mov ah,9
+        mov dx,offset tst
+        int 21h
+        jmp end_prog
+divi:
+        mov ah,9
+        mov dx,offset tst
+        int 21h
+        jmp end_prog
 
+end_prog:
         mov ah,4ch
         int 21h
 
