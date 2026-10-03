@@ -1,16 +1,26 @@
 .model small
-.stack
+.stack 100h
 .data
-        tst     db  0dh, 0ah, 'this is a test message$', 0dh, 0ah
-        wi_msg  db  'Invalid input length or value!$', 0dh, 0ah ; wrong input message
-        menu    db      0dh, 0ah, '=========CALCULATOR==========', 0dh, 0ah
-                db      '1. Addition', 0dh, 0ah
-                db      '2. Subtraction', 0dh, 0ah
-                db      '3. Multiplication', 0dh, 0ah
-                db      '4. Divison', 0dh, 0ah, '$'
-        prompt  db  'Enter input: $'
+        ; --- Strings ---
+        menu    db  0dh, 0ah, '=========CALCULATOR==========', 0dh, 0ah
+                db  '1. Addition', 0dh, 0ah
+                db  '2. Subtraction', 0dh, 0ah
+                db  '3. Multiplication', 0dh, 0ah
+                db  '4. Divison', 0dh, 0ah, '$'
+        prompt  db  'Select operation (1-4): $'
+        msg_n1  db  0dh, 0ah, 'Enter first number: $'
+        msg_n2  db  0dh, 0ah, 'Enter second number: $'
+        msg_res db  0dh, 0ah, 'Result: $'
+        msg_rem db  ' Remainder $'
+        wi_msg  db  0dh, 0ah, 'Invalid input!$'
+        dz_msg  db  0dh, 0ah, 'Error: Divide by zero!$'
+        msg_agn db  0dh, 0ah, 0dh, 0ah, 'Use again? (Y/N): $'
+        
+        ; --- Variables ---
         buff    db  20,0,20 dup(0)
-        temp    db  20 dup(0)
+        num1    dw  0    
+        num2    dw  0
+
 .code
 main    proc
         mov ax,@data
@@ -23,78 +33,257 @@ get_prompt:
         mov dx,offset menu
         int 21h
 
-        ; Prompt user
+        ; Prompt user for menu choice
         mov ah,9
         mov dx,offset prompt
         int 21h
 
-        ; User input place it into the buffer variable
+        ; Get menu choice (single char)
         mov ah,0ah
         mov dx,offset buff
         int 21h
 
-        ; Point to buff/temp
         mov si,offset buff
-        mov di,offset temp
-
-        ; get loop counter
         inc si
         lodsb
-        mov ch,0
-
-        ; User entered an extra character
+        
         cmp al,1
-        mov cl,al
-        jne wrong_input
-        jmp valid_input
+        je check_val
+        jmp wrong_input
 
-wrong_input: ; If the user input length > 1
+check_val:
+        lodsb   
+        cmp al,'1'
+        jl do_wrong
+        cmp al,'4'
+        jg do_wrong
+        jmp get_numbers
+
+do_wrong:
+        jmp wrong_input
+
+get_numbers:
+        mov bl, al ; Save menu choice
+
+        ; --- GET NUMBER 1 ---
+        mov ah,9
+        mov dx,offset msg_n1
+        int 21h
+        call READ_NUM      
+        mov num1, ax       
+
+        ; --- GET NUMBER 2 ---
+        mov ah,9
+        mov dx,offset msg_n2
+        int 21h
+        call READ_NUM
+        mov num2, ax
+
+        ; --- ROUTING ---
+        cmp bl,'1'
+        jne chk2
+        jmp addi
+chk2:
+        cmp bl,'2'
+        jne chk3
+        jmp subt
+chk3:
+        cmp bl,'3'
+        jne chk4
+        jmp mult
+chk4:
+        cmp bl,'4'
+        jne wrong_input
+        jmp divi
+
+wrong_input: 
         mov ah,9
         mov dx,offset wi_msg
         int 21h
         jmp get_prompt
 
-valid_input: ; if the user inputs a single character input
-        ; copy below if you need a test logic
-        ;mov ah,9
-        ;mov dx,offset tst
-        ;int 21h
-        lodsb
-        
-        cmp al,'1'
-        je addi
-        cmp al,'2'
-        je subt
-        cmp al,'3'
-        je mult
-        cmp al,'4'
-        je divi
-        jmp wrong_input
+; ==========================================
+; MATH OPERATIONS
+; ==========================================
 
 addi:
-        mov ah,9
-        mov dx,offset tst
+        mov ax, num1
+        add ax, num2
+        
+        mov cx, ax         
+        mov ah, 9
+        mov dx, offset msg_res
         int 21h
-        jmp end_prog
+        mov ax, cx
+        
+        call PRINT_NUM     
+        jmp ask_again
+
 subt:
-        mov ah,9
-        mov dx,offset tst
+        mov ax, num1
+        sub ax, num2
+        
+        mov cx, ax
+        mov ah, 9
+        mov dx, offset msg_res
         int 21h
-        jmp end_prog
+        mov ax, cx
+        
+        call PRINT_NUM
+        jmp ask_again
+
 mult:
-        mov ah,9
-        mov dx,offset tst
+        mov ax, num1
+        mul num2           
+        
+        mov cx, ax
+        mov ah, 9
+        mov dx, offset msg_res
         int 21h
-        jmp end_prog
+        mov ax, cx
+        
+        call PRINT_NUM
+        jmp ask_again
+
 divi:
-        mov ah,9
-        mov dx,offset tst
+        cmp num2, 0        
+        je div_zero
+
+        xor dx, dx         
+        mov ax, num1
+        div num2           
+        
+        mov cx, ax         
+        mov bx, dx         
+
+        ; Print Quotient
+        mov ah, 9
+        mov dx, offset msg_res
         int 21h
-        jmp end_prog
+        mov ax, cx
+        call PRINT_NUM
+
+        ; Print Remainder
+        mov ah, 9
+        mov dx, offset msg_rem
+        int 21h
+        mov ax, bx
+        call PRINT_NUM
+        jmp ask_again
+
+div_zero:
+        mov ah, 9
+        mov dx, offset dz_msg
+        int 21h
+        jmp ask_again
+
+; ==========================================
+; RESTART PROMPT
+; ==========================================
+ask_again:
+        mov ah, 9
+        mov dx, offset msg_agn
+        int 21h
+
+        mov ah, 1
+        int 21h
+
+        cmp al, 'Y'
+        je do_restart
+        cmp al, 'y'
+        je do_restart
+        cmp al, 'N'
+        je end_prog
+        cmp al, 'n'
+        je end_prog
+        
+        ; If they typed something invalid, ask again
+        jmp ask_again
+
+do_restart:
+        jmp get_prompt
 
 end_prog:
         mov ah,4ch
         int 21h
-
 main    endp
-end     main
+
+; ==========================================
+; HELPER SUBROUTINES
+; ==========================================
+
+READ_NUM PROC
+        push bx
+        push cx
+        push dx
+        xor bx, bx         
+read_loop:
+        mov ah, 1
+        int 21h
+        cmp al, 13         
+        je read_done
+        cmp al, '0'
+        jl read_loop       
+        cmp al, '9'
+        jg read_loop       
+
+        sub al, 30h        
+        xor ah, ah
+        mov cx, ax         
+
+        mov ax, bx
+        mov dx, 10
+        mul dx             
+        add ax, cx         
+        mov bx, ax         
+        jmp read_loop
+read_done:
+        mov ax, bx         
+        pop dx
+        pop cx
+        pop bx
+        ret
+READ_NUM ENDP
+
+PRINT_NUM PROC
+        push ax
+        push bx
+        push cx
+        push dx
+        
+        or ax, ax
+        jns positive
+        push ax
+        mov dl, '-'        
+        mov ah, 2
+        int 21h
+        pop ax
+        neg ax             
+
+positive:
+        xor cx, cx         
+        mov bx, 10         
+
+extract_loop:
+        xor dx, dx
+        div bx             
+        push dx            
+        inc cx             
+        cmp ax, 0          
+        jne extract_loop   
+
+print_loop:
+        pop dx             
+        add dl, 30h        
+        mov ah, 2
+        int 21h
+        loop print_loop    
+
+        pop dx
+        pop cx
+        pop bx
+        pop ax
+        ret
+PRINT_NUM ENDP
+
+end main
